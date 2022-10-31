@@ -1,7 +1,8 @@
 # football_analytics_codes
  A place where I store all of my codes to create vizzes
 # Includes:
- This repo includes codes for:\n
+ This repo includes codes for:
+ 
  NPxG per game, viz inspired by StatsBomb's original viz
  ![npxg_statsbomb(1)](https://user-images.githubusercontent.com/63649138/199063930-504433e3-d16a-414c-b995-a7cb505e8470.png)
  PSxG overperformance by shot angles
