@@ -1,0 +1,450 @@
+---
+title: "Bayer Leverkusen analysis"
+author: "Daryl Dao"
+output:
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Bayer Leverkusen - 2023/24 analysis
+
+## 1. Dataset description
+
+### Source
+
+The dataset used in this report comes from StatsBomb, a well-known advanced sports data provider and analytics. They recently released this dataset to the public after Leverkusen achieved the historic season and the source can be found [here](https://statsbomb.com/articles/soccer/free-statsbomb-data-bayer-leverkusens-invincible-bundesliga-title-win/). The dataset is loaded onto R using StatsBomb's own package called StatsBombR, which is available on [GitHub](https://github.com/statsbomb/StatsBombR) and is installed in the cell below. The matches dataset contains the match information such as teams played, match ID, date that was played, and additional information related to all 34 matches of the season. Using StatsBomb's specific competition and season IDs, all available matches and its accompanied information were first loaded and they were used to load events data from all matches into a single data frame.
+
+### Description
+
+Within the events dataset, it comprises comprehensive event data from all 34 matches that Leverkusen played in this Bundesliga season. Each event is considered as an action that happened when a player interacted with the ball, which was then tagged and categorised into a specific type such as pass, shot, or dribble. This dataset contains key features such as:
+
+-   The information of the match where the event was tagged, including date, minute and second.
+
+-   The information related to the event, including specific ID, event type, player and team who conducted the action, location in x and y coordinates, and duration of the event.
+
+-   Additional information related and specific to each event, including outcome, end location in x and y coordinates, and boolean-type values to indicate whether an event is of a specific type.
+
+These event-related information were used to filter the returned results to only contain relevant events that will be used to plot the visualisations below. This is done to avoid loading irrelevant events as it can be computational demanding to load and store all events at all time.
+
+### **Setup**
+
+```{r load-data, warning=FALSE, message=FALSE, results="hide"}
+# Load packages
+library(tidyverse) # For loading packages
+library(plotly) # For interactive plots
+library(dplyr) # For processing data
+library(ggplot2) # For visualisation
+library(ggsoccer) # For plotting event data
+
+## Install StatsBomb's R package
+# devtools::install_github("statsbomb/StatsBombR")
+library(StatsBombR)
+
+## Install package to plot football data
+# devtools::install_github("jogall/soccermatics")
+library(soccermatics)
+```
+
+```{r load-statsbomb, warning=FALSE, message=FALSE, results="hide"}
+# Load competition information from StatsBomb
+BuLi_2324 <- FreeCompetitions() %>% 
+  filter(
+    competition_id == 9,
+    season_id == "281"
+  )
+
+# Load all matches from Leverkusen's 23/24 Bundesliga season
+BuLi_matches <- FreeMatches(BuLi_2324)
+
+# Load all data
+# LeverkusenEvents <- free_allevents(MatchesDF = BuLi_matches, Parallel = T)
+# LeverkusenEvents = allclean(LeverkusenEvents)
+```
+
+## 2. Visualisations
+
+### Visualisation 1
+
+```{r shots-data, warning=FALSE, message=FALSE, results='hide'}
+# Load data
+shots_for <- free_allevents(MatchesDF = BuLi_matches, Parallel = T) %>%
+  # Use StatsBomb's function to clean the dataframe
+  allclean() %>% 
+  filter(
+    # Select events with type ID of 16 (shot events)
+    type.id == 16 &
+      # Select events that were made by Leverkusen players
+      team.id == 904 &
+      # Select relevant shot events and ignore others
+      shot.outcome.name %in% c(
+        "Off T", "Saved Off Target", "Wayward", "Saved", "Goal"
+      )
+  ) %>% 
+  # Select relevant columns
+  select(location.x, location.y, shot.outcome.name, shot.statsbomb_xg)
+
+# Replace specific values
+shots_for$shot.outcome.name <- replace(
+  shots_for$shot.outcome.name,
+  shots_for$shot.outcome.name %in% c("Off T", "Saved Off Target", "Wayward"),
+  "Off Target"
+)
+shots_for$shot.outcome.name <- replace(
+  shots_for$shot.outcome.name,
+  shots_for$shot.outcome.name == "Saved",
+  "On Target"
+)
+```
+
+```{r shots-for}
+ggplot(
+  data = shots_for
+) +
+  # Plot the pitch
+  annotate_pitch(
+    colour = "#797876",
+    fill = "#202020",
+    limits = FALSE,
+    dimensions = pitch_statsbomb
+  ) +
+  # Plot the shot points
+  geom_point(
+    mapping = aes(
+      x = location.x,
+      y = location.y,
+      colour = shot.statsbomb_xg
+    )
+  ) +
+  # Add viridis colourmap
+  scale_colour_viridis_c() +
+  # Facet by shots type
+  facet_grid(~shot.outcome.name) +
+  # Use the pitch theme
+  theme_pitch() +
+  # Change the panel background colour
+  theme(
+    panel.background = element_rect(fill = "#202020"),
+    legend.position = "bottom"
+  ) +
+  # Set the limits of the x-axis
+  coord_flip(
+    xlim = c(49, 120)
+  ) +
+  # Reverse the scale of the y-axis
+  scale_y_reverse() +
+  # Add labels
+  labs(
+    colour = "Expected Goals Value",
+    title = "Bayer Leverkusen's shots by type and xG",
+    subtitle = "From the 2023-24 German Bundesliga season"
+  )
+```
+
+### Visualisation 2
+
+```{r pass-data, warning=FALSE, message=FALSE, results='hide'}
+# Load data
+## Passes
+passes <- free_allevents(MatchesDF = BuLi_matches, Parallel = T) %>% 
+  # Use StatsBomb's function to clean the dataframe
+  allclean() %>% 
+  filter(
+    # Select events with type ID 30 (pass events)
+    # and were made by Leverkusen players
+    type.id == 30 & team.id == 904
+  ) %>% 
+  # Select relevant columns
+  select(position.name, pass.outcome.name, pass.recipient.name)
+
+## Touches
+touches <- free_allevents(MatchesDF = BuLi_matches, Parallel = T) %>%
+  # Use StatsBomb's function to clean the dataframe
+  allclean() %>%
+  # Get all touch events
+  # Type ID order: Pass, Ball Receipt, Ball Recovery, Dispossessed, Clearance, Interception, Dribble, Shot, Goal Keeper, Error, Miscontrol, Carry
+  filter(
+    type.id %in% c(30, 42, 2, 3, 9, 10, 14, 16, 23, 37, 38, 43) & 
+      # Player executing the action is from Leverkusen
+      # and team in possession when action is executed is Leverkusen
+      team.id == 904
+  ) %>% 
+  # Select relevant columns
+  select(location.x, location.y, position.id, position.name, team.name)
+```
+
+```{r touches-filter}
+# Select relevant columns
+touches_filtered <- touches %>% select(
+  location.x, location.y, position.id, position.name, team.name
+)
+
+# Replace values
+# Center Midfield -> Defensive Midfield
+touches_filtered$position.id <- replace(
+  touches_filtered$position.id,
+  touches_filtered$position.id %in% c(15, 13),
+  c(11, 9)
+)
+touches_filtered$position.name <- replace(
+  touches_filtered$position.name,
+  touches_filtered$position.name %in% c('Left Center Midfield', 'Right Center Midfield'),
+  c('Left Defensive Midfield', 'Right Defensive Midfield')
+)
+# Left/Right Wing -> Left/Right Attacking Midfield
+touches_filtered$position.id <- replace(
+  touches_filtered$position.id,
+  touches_filtered$position.id %in% c(21, 17),
+  c(20, 18)
+)
+touches_filtered$position.name <- replace(
+  touches_filtered$position.name,
+  touches_filtered$position.name %in% c('Left Wing', 'Right Wing'),
+  c('Left Attacking Midfield', 'Right Attacking Midfield')
+)
+
+# Retain positions that are in a 3-4-3/3-4-2-1 formation
+touches_filtered <- touches_filtered[
+  (touches_filtered$position.name %in% c(
+    "Goalkeeper", "Left Center Back", "Center Back", "Right Center Back",
+    "Left Wing Back", "Right Wing Back", "Left Defensive Midfield",
+    "Right Defensive Midfield", "Left Attacking Midfield",
+    "Right Attacking Midfield", "Center Forward"
+    )),
+]
+```
+
+```{r avg-positions, warning=FALSE, message=FALSE, results='hide'}
+# Calculate the average positions
+avg_positions <- touches_filtered %>% 
+  # Group the data by position
+  group_by(position.id, position.name) %>% 
+  # Calculate the mean position
+  summarise(
+    x = mean(location.x, na.rm = T),
+    y = mean(location.y, na.rm = T),
+    events = n()
+  ) %>% 
+  # Remove NA values
+  na.omit() %>% 
+  # Return a dataframe
+  as.data.frame()
+```
+
+```{r position-replace}
+# Map the pass recipients to their respective main position
+passes$pass.recipient.name <- replace(
+  passes$pass.recipient.name,
+  passes$pass.recipient.name %in% c("Lukáš Hrádecký", "Matěj Kovář"),
+  "Goalkeeper"
+)
+passes$pass.recipient.name <- replace(
+  passes$pass.recipient.name,
+  passes$pass.recipient.name %in% c("Piero Martín Hincapié Reyna", "Edmond Fayçal Tapsoba"),
+  "Left Center Back"
+)
+passes$pass.recipient.name <- replace(
+  passes$pass.recipient.name,
+  passes$pass.recipient.name %in% c("Jonathan Tah"),
+  "Center Back"
+)
+passes$pass.recipient.name <- replace(
+  passes$pass.recipient.name,
+  passes$pass.recipient.name %in% c("Odilon Kossonou"),
+  "Right Center Back"
+)
+passes$pass.recipient.name <- replace(
+  passes$pass.recipient.name,
+  passes$pass.recipient.name %in% c("Alejandro Grimaldo García", "Arthur Augusto de Matos Soares"),
+  "Left Wing Back"
+)
+passes$pass.recipient.name <- replace(
+  passes$pass.recipient.name,
+  passes$pass.recipient.name %in% c("Jeremie Frimpong", "Nathan Tella", "Josip Stanišić"),
+  "Right Wing Back"
+)
+passes$pass.recipient.name <- replace(
+  passes$pass.recipient.name,
+  passes$pass.recipient.name %in% c("Granit Xhaka", "Robert Andrich", "Noah Mbamba", "Nadiem Amiri"),
+  "Left Defensive Midfield"
+)
+passes$pass.recipient.name <- replace(
+  passes$pass.recipient.name,
+  passes$pass.recipient.name %in% c("Exequiel Alejandro Palacios", "Gustavo Adolfo Puerta Molano"),
+  "Right Defensive Midfield"
+)
+passes$pass.recipient.name <- replace(
+  passes$pass.recipient.name,
+  passes$pass.recipient.name %in% c("Florian Wirtz", "Adam Hložek"),
+  "Left Attacking Midfield"
+)
+passes$pass.recipient.name <- replace(
+  passes$pass.recipient.name,
+  passes$pass.recipient.name %in% c("Jonas Hofmann", "Amine Adli"),
+  "Right Attacking Midfield"
+)
+passes$pass.recipient.name <- replace(
+  passes$pass.recipient.name,
+  passes$pass.recipient.name %in% c("Victor Okoh Boniface", "Patrik Schick", "Borja Iglesias Quintas"),
+  "Center Forward"
+)
+```
+
+```{r pass-filter, warning=FALSE, message=FALSE, results='hide'}
+# Filter the passes
+passes_filtered <- passes %>% 
+  filter(
+    # Only retain passes from relevant positions
+    position.name %in% avg_positions$position.name
+    # Remove passes that are not actually "passes"
+    & !(pass.outcome.name %in% c("Injury Clearance", "Pass Offside", "Unknown"))
+  ) %>% 
+  # Replace outcome NA values with the tag "Successful"
+  mutate(
+    pass.outcome.name = replace_na(pass.outcome.name, "Successful")
+  ) %>% 
+  # Group data
+  group_by(position.name, pass.recipient.name) %>% 
+  # Create a passing matrix using the sum of pass links
+  summarise(
+    num = n()
+  ) %>% 
+  # Remove NAs
+  na.omit() %>%
+  # Only retrieve links that have 100 passes or more
+  filter(
+    num >= 200
+  ) %>% 
+  # Return as a data frame
+  as.data.frame()
+```
+
+```{r edges}
+# Join the two dataframes together
+edges <- left_join(
+  x = passes_filtered, y = avg_positions %>% select(from.x = x, from.y = y, position.name),
+  by = "position.name"
+)
+edges <- left_join(
+  x = edges, y = avg_positions %>% select(to.x = x, to.y = y, pass.recipient.name = position.name),
+  by = "pass.recipient.name"
+)
+```
+
+```{r pass-network}
+ggplot() +
+  # Plot the pitch
+  annotate_pitch(
+    colour = "#ffffff",
+    fill = "#030338",
+    limits = TRUE,
+    dimensions = pitch_statsbomb,
+    linewidth = 0.75
+  ) +
+  # Plot the pass connections
+  geom_segment(
+    data = edges,
+    mapping = aes(
+      x = from.x,
+      y = from.y,
+      xend = to.x,
+      yend = to.y,
+      colour = num,
+      linewidth = num
+    ),
+    alpha = 0.7,
+    arrow = arrow(length = unit(0.4, "cm")),
+    show.legend = c(linewidth = F)
+  ) +
+  # Add gradient scale for the edges
+  scale_colour_gradientn(
+    colours = c("#db6576", "#e0df97", "#059f92")
+  ) +
+  # Plot the average positions
+  geom_point(
+    data = avg_positions,
+    mapping = aes(x = x, y = y),
+    fill = "#d7dbda",
+    colour = "#e32221",
+    size = 5,
+    pch = 21
+  ) +
+  # Add arrow to bottom left to show attacking direction
+  annotate(
+    geom = "segment",
+    x = 0, y = -4,
+    xend = 12, yend = -4,
+    colour = "white", linewidth = 1,
+    arrow = arrow(
+      length = unit(0.2, "cm")
+    )
+  ) +
+  # Use theme pitch to remove unnecessary elements
+  theme_pitch() +
+  # Change the panel background colour
+  theme(
+    panel.background = element_rect(fill = "#030338"),
+    legend.position = "bottom",
+    legend.key.width = unit(1.5, "cm")
+  ) +
+  # Add labels
+  labs(
+    title = "Bayer Leverkusen's average passing network",
+    subtitle = "2023/24 Bundesliga | Min. 200 passes shown",
+    colour = "Pass combinations"
+  )
+```
+
+### Visualisation 3
+
+```{r defActions-data, warning=FALSE, message=FALSE, results='hide'}
+# Load data
+def_actions <- free_allevents(MatchesDF = BuLi_matches, Parallel = T) %>%
+  # Use StatsBomb's function to clean the dataframe
+  allclean() %>%
+  # Get all defensive action events
+  # Type ID order: Ball Recovery, Clearance, Interception, Pressure
+  filter(
+    type.id %in% c(2, 9, 10, 17) & 
+      # Player executing the action is from Leverkusen
+      team.id == 904
+  ) %>% 
+  # Select relevant columns
+  select(location.x, location.y, type.id, type.name, player.id, player.name, team.name)
+```
+
+```{r defActions-plot}
+ggplot() +
+  # Plot the pitch
+  annotate_pitch(
+    limits = TRUE,
+    dimensions = pitch_statsbomb,
+    linewidth = 0.75
+  ) +
+  # Plot the heatmap in bins
+  stat_bin_2d(
+    data = def_actions,
+    mapping = aes(x = location.x, y = location.y),
+    binwidth = c(10, 10),
+    alpha = 0.5,
+    na.rm = T
+  ) +
+  # Add gradient colours
+  scale_fill_gradient(low = "white", high = "blue") +
+  # Use theme pitch to remove unnecessary elements
+  theme_pitch() +
+  # Remove legend
+  theme(
+    panel.background = element_blank(),
+    legend.position = "bottom",
+    legend.key.width = unit(1.5, "cm")
+  ) +
+  # Add labels
+  labs(
+    title = "Bayer Leverkusen | 2023/24 German Bundesliga",
+    subtitle = "Defensive actions heatmap",
+    fill = "Defensive actions"
+  )
+```
