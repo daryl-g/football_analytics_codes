@@ -1,14 +1,23 @@
-# football_analytics_codes
+# Football Analytics codes
 
 A place where I store all of my codes to create vizzes
 
-# Includes:
+## Includes
 
-This repo includes codes for:
+- NPxG per game, viz inspired by StatsBomb's original viz
+  ![npxg_statsbomb(1)](<./examples/npxg_statsbomb(1).png>)
 
-NPxG per game, viz inspired by StatsBomb's original viz
-![npxg_statsbomb(1)](<./examples/npxg_statsbomb(1).png>)
-PSxG overperformance by shot angles
-![savepercentage_shotangle(2)](<./examples/savepercentage_shotangle(2).png>)
-Pizzas and radars for scouting players
-![pizzas_for_scouting(3)](<./examples/pizzas_for_scouting(3).png>)
+- PSxG overperformance by shot angles
+  ![savepercentage_shotangle(2)](<./examples/savepercentage_shotangle(2).png>)
+
+- Pizzas and radars for scouting players
+  ![pizzas_for_scouting(3)](<./examples/pizzas_for_scouting(3).png>)
+
+- Player dashboard
+  ![dashboard(1)](<./examples/dashboard(1).png>)
+
+- Line plot faceted by team, in R
+  ![avgAge_lineplot](./examples/avgAge_lineplot.png)
+
+- Box and whisker plot, in R
+  ![ages_boxplot](./examples/ages_boxplot.png)

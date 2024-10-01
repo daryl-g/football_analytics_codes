@@ -1,0 +1,307 @@
+---
+title: "Analysing transfers age"
+author: "Daryl Dao"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Analysing transfers age + value by year
+
+### Load packages
+
+```{r load-packages, warning=FALSE, message=FALSE, results="hide"}
+# Load necessary packages
+library(tidyverse)
+library(ggplot2)
+library(dplyr)
+library(scales)
+```
+
+### Load data
+
+```{r load-data}
+# Load the csv file
+transfers <- read.csv(
+  "./transfers.csv",
+  sep = ","
+)
+```
+
+### Boxplot - Distribution of Player Ages at time of Transfer
+
+```{r boxplot}
+p1 <- ggplot(
+  data = transfers,
+  mapping = aes(
+    x = Transfer.year,
+    y = Transfer.age,
+    group = Transfer.year
+  )
+) +
+  # Plot a boxplot
+  geom_boxplot() +
+  # Display all years
+  scale_x_continuous(
+    breaks = c(2014:2024),
+    labels = c(2014:2023, "2024 (so far)")
+  ) +
+  # Change breaks for age
+  scale_y_continuous(
+    breaks = c(15, 18, 21, 24, 27, 30, 33, 36)
+  ) +
+  # Add labels
+  labs(
+    title = "Distribution of Player Ages at time of Transfer",
+    subtitle = "From the 2014 summer window to August 1st, 2024 | Excludes free transfers & loans",
+    caption = "By Daryl | Data: Transfermarkt",
+    x = "Year",
+    y = "Age at time of Transfer"
+  ) +
+  # Use theme light
+  theme_light()
+
+# Save the plot
+ggsave(
+  "Ages boxplot.png",
+  plot = p1,
+  width = 14,
+  height = 8,
+  dpi = 300
+)
+```
+
+### Lineplot - Average transfer age per year by team
+
+```{r avgAge-team}
+# Group average transfer age by team
+avgAge <- transfers %>% 
+  group_by(Club, Transfer.year) %>% 
+  summarise(
+    avgAge = mean(Transfer.age)
+  )
+```
+
+```{r lineplot1}
+p2 <- ggplot(
+  data = avgAge,
+  mapping = aes(
+    x = Transfer.year,
+    y = avgAge,
+    colour = Club
+  )
+) +
+  # Plot the lineplot
+  geom_line(
+    linewidth = .75
+  ) +
+  # Display all years
+  scale_x_continuous(
+    breaks = c(2014:2024)
+  ) +
+  # Change breaks for age
+  scale_y_continuous(
+    breaks = c(15, 18, 21, 24, 27, 30, 33, 36)
+  ) +
+  # Facet the plot
+  facet_wrap(
+    ~ Club,
+    nrow = 3,
+    ncol = 5
+  ) +
+  # Change the labels
+  labs(
+    y = "Average player age at time of transfer",
+    x = "Transfer year",
+    title = "Average transfer age each year by team",
+    subtitle = "From the 2014 summer window to August 1st, 2024 | Excludes free transfers & loans",
+    caption = "By Daryl | Data: Transfermarkt",
+    
+  ) +
+  # Use light theme
+  theme_light() +
+  # Remove the legend
+  theme(
+    legend.position = "none"
+  )
+
+# Save the plot
+ggsave(
+  "Average age boxplot.png",
+  plot = p2,
+  width = 18,
+  height = 8,
+  dpi = 300
+)
+```
+
+### Lineplot - Average transfer fee per year by age group
+
+```{r avgFee-year}
+# Group average transfer fee by year & age group
+avgFee <- transfers %>% 
+  mutate(
+    # Create age groups
+    age_group = case_when(
+      Transfer.age <= 18                     ~ "Under-19",
+      Transfer.age > 18 & Transfer.age <= 24 ~ "19-24",
+      Transfer.age > 24 & Transfer.age <= 29 ~ "25-29",
+      Transfer.age > 29                      ~ "> 30"
+    ),
+    # Convert to factor
+    age_group = factor(
+      age_group,
+      level = c("Under-19", "19-24","25-29", "> 30")
+    )
+  ) %>% 
+  # Group by age group & year
+  group_by(age_group, Transfer.year) %>% 
+  # Calculate the average transfer fee
+  summarise(
+    avgFee = mean(Transfer.price)
+  )
+```
+
+```{r lineplot2}
+p3 <- ggplot(
+  data = avgFee,
+  mapping = aes(
+    x = Transfer.year,
+    y = avgFee,
+    colour = age_group
+  )
+) +
+  # Plot the lineplot
+  geom_line(
+    linewidth = .75
+  ) +
+  # Display all years
+  scale_x_continuous(
+    breaks = c(2014:2024)
+  ) +
+  # Change breaks for age
+  scale_y_continuous(
+    labels = unit_format(unit = "M", scale = 1e-6)
+  ) +
+  # Facet the plot
+  facet_wrap(
+    ~ age_group,
+  ) +
+  # Change the labels
+  labs(
+    y = "Average transfer fee (Euro)",
+    x = "Transfer year",
+    title = "Average transfer fee each year by age group",
+    subtitle = "From the 2014 summer window to August 1st, 2024 | Excludes free transfers & loans",
+    caption = "By Daryl | Data: Transfermarkt",
+    
+  ) +
+  # Use light theme
+  theme_light() +
+  # Remove the legend
+  theme(
+    legend.position = "none"
+  )
+
+# Save the plot
+ggsave(
+  "Average fee boxplot.png",
+  plot = p3,
+  width = 13,
+  height = 8,
+  dpi = 300
+)
+```
+
+### Lineplot - Distribution of transfer fee by position
+
+```{r fee-position}
+# Group transfer fee by year & age group & position group
+feeByPosition <- transfers %>% 
+  mutate(
+    # Create age groups
+    age_group = case_when(
+      Transfer.age <= 18                     ~ "Under-19",
+      Transfer.age > 18 & Transfer.age <= 24 ~ "19-24",
+      Transfer.age > 24 & Transfer.age <= 29 ~ "25-29",
+      Transfer.age > 29                      ~ "> 30"
+    ),
+    # Convert to factor
+    age_group = factor(
+      age_group,
+      level = c("Under-19", "19-24","25-29", "> 30")
+    )
+  ) %>% 
+  mutate(
+    # Create position groups
+    position_group = case_when(
+      Position == "Goalkeeper"                            ~ "Goalkeeper",
+      Position == "Centre back" | Position == "Full back" ~ "Defender",
+      Position == "Defensive midfielder" | 
+        Position == "Central midfielder" | 
+        Position == "Attacking midfielder"                ~ "Midfielder",
+      Position == "Winger" | Position == "Striker"        ~ "Attacker"
+    ),
+    # Convert to factor
+    position_group = factor(
+      position_group,
+      level = c("Goalkeeper", "Defender","Midfielder", "Attacker")
+    )
+  ) %>% 
+  # Group by age group & year
+  group_by(age_group, Transfer.year, position_group) %>% 
+  # Calculate the average transfer fee
+  summarise(
+    avgFee = mean(Transfer.price)
+  )
+```
+
+```{r lineplot3}
+p4 <- ggplot(
+  data = feeByPosition,
+  mapping = aes(
+    x = Transfer.year,
+    y = avgFee,
+    colour = age_group
+  )
+) +
+  # Plot the lineplot
+  geom_line(
+    linewidth = .75
+  ) +
+  # Display all years
+  scale_x_continuous(
+    breaks = c(2014:2024)
+  ) +
+  # Change breaks for age
+  scale_y_continuous(
+    labels = unit_format(unit = "M", scale = 1e-6)
+  ) +
+  # Facet the plot
+  facet_wrap(
+    ~ position_group,
+  ) +
+  # Change the labels
+  labs(
+    y = "Average transfer fee (Euro)",
+    x = "Transfer year",
+    title = "Average transfer fee each year by age & position group",
+    subtitle = "From the 2014 summer window to August 1st, 2024 | Excludes free transfers & loans",
+    caption = "By Daryl | Data: Transfermarkt",
+    colour = "Age group"
+  ) +
+  # Use light theme
+  theme_light()
+
+# Save the plot
+ggsave(
+  "Average fee by position boxplot.png",
+  plot = p4,
+  width = 15,
+  height = 8,
+  dpi = 300
+)
+```
