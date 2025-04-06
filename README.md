@@ -16,6 +16,9 @@ A place where I store all of my codes to create vizzes
 - Player dashboard
   ![dashboard(1)](<./examples/dashboard(1).png>)
 
+- Past positions line plot
+  ![past_positions](./examples/past_positions.png)
+
 - Line plot faceted by team, in R
   ![avgAge_lineplot](./examples/avgAge_lineplot.png)
 
